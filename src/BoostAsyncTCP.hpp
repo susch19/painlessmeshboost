@@ -162,7 +162,6 @@ class AsyncClient {
   }
 
   void handleData(const boost::system::error_code& ec, size_t len) {
-    std::cout << "Data received " << this << " " << len << std::endl;
     if (!this->connected()) return;
 
     if (!ec) {

@@ -23,12 +23,19 @@ given then --server, else as required.
 */
 
 #undef F
+#include <boost/date_time.hpp>
 #include <boost/program_options.hpp>
 #define F(string_literal) string_literal
 namespace po = boost::program_options;
 
 #include <iostream>
 #include <iterator>
+
+std::string timeToString() {
+  boost::posix_time::ptime timeLocal =
+    boost::posix_time::second_clock::local_time();
+  return to_iso_extended_string(timeLocal);
+}
 
 int main(int ac, char* av[]) {
   try {
@@ -82,35 +89,42 @@ int main(int ac, char* av[]) {
 
     if (vm.count("log")) {
       mesh.onReceive([&mesh](uint32_t nodeId, std::string& msg) {
-        std::cout << "{\"event\":\"receive\", \"time\":" << mesh.getNodeTime()
+        std::cout << "{\"event\":\"receive\",\"nodeTime\":" << mesh.getNodeTime()
+                  << ",\"time\":\"" << timeToString() << "\""
                   << ",\"nodeId\":" << nodeId << ",\"msg\":\"" << msg << "\"}"
                   << std::endl;
       });
       mesh.onNewConnection([&mesh](uint32_t nodeId) {
-        std::cout << "{\"event\":\"connect\", \"time\":" << mesh.getNodeTime()
+        std::cout << "{\"event\":\"connect\",\"nodeTime\":" << mesh.getNodeTime()
+                  << ",\"time\":\"" << timeToString() << "\""
                   << ",\"nodeId\":" << nodeId
                   << ", \"layout\":" << mesh.asNodeTree().toString() << "}"
                   << std::endl;
       });
 
       mesh.onDroppedConnection([&mesh](uint32_t nodeId) {
-        std::cout << "{\"event\":\"disconnect\", \"time\":"
-                  << mesh.getNodeTime() << ",\"nodeId\":" << nodeId
+        std::cout << "{\"event\":\"disconnect\",\"nodeTime\":"
+                  << mesh.getNodeTime() 
+                  << ",\"time\":\"" << timeToString() << "\""
+                  << ",\"nodeId\":" << nodeId
                   << ", \"layout\":" << mesh.asNodeTree().toString() << "}"
                   << std::endl;
       });
 
       mesh.onChangedConnections([&mesh]() {
-        std::cout << "{\"event\":\"change\", \"time\":" << mesh.getNodeTime()
+        std::cout << "{\"event\":\"change\",\"nodeTime\":" << mesh.getNodeTime()
+                  << ",\"time\":\"" << timeToString() << "\""
                   << ", \"layout\":" << mesh.asNodeTree().toString() << "}"
                   << std::endl;
       });
       mesh.onNodeTimeAdjusted([&mesh](int32_t offset) {
-        std::cout << "{\"event\":\"offset\", \"time\":" << mesh.getNodeTime()
+        std::cout << "{\"event\":\"offset\",\"nodeTime\":" << mesh.getNodeTime()
+                  << ",\"time\":\"" << timeToString() << "\""
                   << ",\"offset\":" << offset << "}" << std::endl;
       });
       mesh.onNodeDelayReceived([&mesh](uint32_t nodeId, int32_t delay) {
-        std::cout << "{\"event\":\"delay\", \"time\":" << mesh.getNodeTime()
+        std::cout << "{\"event\":\"delay\",\"nodeTime\":" << mesh.getNodeTime()
+                  << ",\"time\":\"" << timeToString() << "\""
                   << ",\"nodeId\":" << nodeId << ",\"delay\":" << delay << "}"
                   << std::endl;
       });

@@ -30,6 +30,8 @@ namespace po = boost::program_options;
 
 #include <iostream>
 #include <iterator>
+#include <limits>
+#include <random>
 
 std::string timeToString() {
   boost::posix_time::ptime timeLocal =
@@ -37,14 +39,24 @@ std::string timeToString() {
   return to_iso_extended_string(timeLocal);
 }
 
+static std::random_device
+    rd;  // Will be used to obtain a seed for the random number engine
+static std::mt19937 gen(rd());
+
+uint32_t runif(uint32_t from, uint32_t to) {
+  std::uniform_int_distribution<uint32_t> distribution(from, to);
+  return distribution(gen);
+}
+
 int main(int ac, char* av[]) {
   try {
     size_t port = 5555;
     std::string ip = "";
     size_t logLevel = 0;
+    size_t nodeId = runif(0, std::numeric_limits<uint32_t>::max());
 
     po::options_description desc("Allowed options");
-    desc.add_options()("help,h", "Produce this help message")(
+    desc.add_options()("help,h", "Produce this help message")("nodeid,n", po::value<size_t>(&nodeId), "Set nodeID, otherwise set to a random value")(
         "port,p", po::value<size_t>(&port), "The mesh port (default is 5555)")(
         "server,s",
         "Listen to incoming node connections. This is the default, unless "
@@ -68,16 +80,10 @@ int main(int ac, char* av[]) {
       return 0;
     }
 
-    /*if (vm.count("compression")) {
-        cout << "Compression level was set to "
-             << vm["compression"].as<double>() << ".\n";
-    } else {
-        cout << "Compression level was not set.\n";
-    }*/
     boost::asio::io_service io_service;
     painlessMesh mesh;
     Log.setLogLevel(ERROR);
-    mesh.init(1, port);
+    mesh.init(nodeId, port);
     std::shared_ptr<AsyncServer> pServer;
     if (vm.count("server") || !vm.count("client")) {
       pServer = std::make_shared<AsyncServer>(io_service, port);

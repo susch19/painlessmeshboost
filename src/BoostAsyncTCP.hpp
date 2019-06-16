@@ -47,7 +47,7 @@ class AsyncClient {
         [&](auto& ec, auto len) { this->handleData(ec, len); });
   }
 
-  size_t write(void* data, size_t len, size_t copy = ASYNC_WRITE_FLAG_COPY) {
+  size_t write(const void* data, size_t len, size_t copy = ASYNC_WRITE_FLAG_COPY) {
     if (writing) return 0;
     writing = true;
     if (copy == ASYNC_WRITE_FLAG_COPY) {
@@ -63,8 +63,12 @@ class AsyncClient {
     return len;
   }
 
-  // Dummy function for compatibility with ESPAsycnTCP
+  // Dummy functions for compatibility with ESPAsycnTCP
   void send() {}
+  void setNoDelay(bool value = true) {}
+  void setRxTimeout(uint32_t timeout) {}
+  const char * errorToString(int8_t error) { return ""; }
+  
 
   // TODO: check if there is a better one
   void abort() { this->close(true); }
@@ -125,6 +129,17 @@ class AsyncClient {
     return TCP_MSS;
   }
 
+  bool canSend() {
+    return this->space() > 0;
+  }
+
+  size_t ack(size_t len) {
+    // Currently assumes that len is actually the size of the data that was sent
+    // Otherwise it will break
+    initRead();
+    return len;
+  }
+
   tcp::socket& socket() { return mSocket; }
 
  protected:
@@ -168,7 +183,6 @@ class AsyncClient {
       if (_recv_cb) {
         _recv_cb(_recv_cb_arg, this, (void*)mInputBuffer, len);
       }
-      initRead();
     } else {
       handleError(ec);
       close(true);
@@ -227,6 +241,8 @@ class AsyncServer {
   // Acceptor stop?
   void end() { mAcceptor.close(); }
 
+  // Dummy function for compatibility with ESPAsycnTCP
+  void setNoDelay(bool value = true) {}
  protected:
   boost::asio::io_service& _io_service;
   uint16_t _port;

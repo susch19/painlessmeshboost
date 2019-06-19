@@ -108,16 +108,15 @@ class AsyncClient {
     _poll_cb_arg = arg;
   }
 
-  bool connected() { return mConnected; }
+  bool connected() { return mSocket.is_open(); }
 
   bool freeable() { return !this->connected(); }
 
   void close(bool now = true) {
-    if (mConnected) {
-      mConnected = false;
-      if (_discard_cb) _discard_cb(_discard_cb_arg, this);
-      if (mSocket.is_open()) {
-        mSocket.close();
+    if (this->connected()) {
+      mSocket.close();
+      if (_discard_cb) {
+        _discard_cb(_discard_cb_arg, this);
       }
     }
   }
@@ -150,7 +149,6 @@ class AsyncClient {
   char mInputBuffer[TCP_MSS];
   char mWriteBuffer[TCP_MSS];
   bool writing = false;
-  bool mConnected = false;
 
   AcConnectHandler _connect_cb = 0;
   void* _connect_cb_arg = 0;
@@ -169,17 +167,17 @@ class AsyncClient {
 
   void handleConnect(const boost::system::error_code& ec) {
     if (!ec) {
-      mConnected = true;
       if (_connect_cb) _connect_cb(_connect_cb_arg, this);
 
       initRead();
     } else {
       handleError(ec);
+      if (this->connected()) close(true);
     }
   }
 
   void handleData(const boost::system::error_code& ec, size_t len) {
-    if (!this->connectedOrDisconnect()) return;
+    if (!this->connected()) return;
 
     if (!ec) {
       if (_recv_cb) {
@@ -187,11 +185,12 @@ class AsyncClient {
       }
     } else {
       handleError(ec);
+      close(true);
     }
   }
 
   void handleWrite(const boost::system::error_code& ec, size_t len) {
-    if (!this->connectedOrDisconnect()) return;
+    if (!this->connected()) return;
 
     if (!ec) {
       if (_sent_cb) {
@@ -201,28 +200,14 @@ class AsyncClient {
       writing = false;
     } else {
       handleError(ec);
+      close(true);
     }
   }
 
   void handleError(const boost::system::error_code& ec) {
-    // eof indicates that the connection closed cleanly
     if (ec != boost::asio::error::eof && _error_cb) {
       _error_cb(_error_cb_arg, this, ec.value());
     }
-    close(true);
-  }
-
-  bool connectedOrDisconnect() {
-    if (mConnected) {
-      if (mSocket.is_open()) {
-        // We are really connected
-        return true;
-      } else {
-        this->close(true);
-        return false;
-      }
-    }
-    return false;
   }
 };
 

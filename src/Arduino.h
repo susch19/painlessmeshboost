@@ -54,6 +54,7 @@ inline void yield() {}
 #define ICACHE_FLASH_ATTR
 
 #define PAINLESSMESH_ENABLE_STD_STRING
+#define PAINLESSMESH_ENABLE_OTA
 
 typedef std::string TSTRING;
 

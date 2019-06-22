@@ -65,7 +65,7 @@ typedef std::string TSTRING;
 #endif  // DEBUG
 
 #include "fake_serial.hpp"
-#include "BoostAsyncTCP.hpp"
+#include "boost/asynctcp.hpp"
 
 
 typedef enum {

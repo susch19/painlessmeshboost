@@ -2,11 +2,8 @@
 #include <algorithm>
 #include <boost/algorithm/hex.hpp>
 #include <boost/filesystem.hpp>
-#include <boost/uuid/detail/md5.hpp>
 #include <iostream>
 #include <iterator>
-
-using boost::uuids::detail::md5;
 
 #include "Arduino.h"
 
@@ -18,67 +15,6 @@ ESPClass ESP;
 
 painlessmesh::logger::LogClass Log;
 
-#define OTA_PART_SIZE 2048
-
-/*
-Reading files:
-
-std::ifstream input( "C:\\Final.gif", std::ios::binary );
-
-// copies all data into buffer
-std::vector<unsigned char> buffer(std::istreambuf_iterator<char>(input), {});
-
-
-Add support for --help, --port (default is 5555), --server, --ip (if neither
-given then --server, else as required.
-
-MD5
-
-std::string toString(const md5::digest_type &digest)
-{
-    const auto charDigest = reinterpret_cast<const char *>(&digest);
-    std::string result;
-    boost::algorithm::hex(charDigest, charDigest + sizeof(md5::digest_type),
-std::back_inserter(result)); return result;
-}
-
-int main ()
-{
-    std::string s;
-
-    while(std::getline(std::cin, s)) {
-        md5 hash;
-        md5::digest_type digest;
-
-        hash.process_bytes(s.data(), s.size());
-        hash.get_digest(digest);
-
-        std::cout << "md5(" << s << ") = " << toString(digest) << '\n';
-    }
-
-    return 0;
-}
-
-FirmwareVersion parseFileName(string name) {
-    import std.string : split;
-    import std.path : baseName, extension;
-    FirmwareVersion fw;
-    auto ext = name.extension;
-    if (ext != ".bin")
-        return fw;
-    auto bName = name.baseName(ext);
-    auto sp = bName.split("_");
-    if (sp.length < 2 || sp.length > 3 || sp[0] != "firmware")
-        return fw;
-    else {
-        fw.hardware = sp[1];
-        if (sp.length == 3)
-            fw.nodeType = sp[2];
-    }
-    return fw;
-}
-*/
-
 #undef F
 #include <boost/date_time.hpp>
 #include <boost/program_options.hpp>
@@ -89,6 +25,9 @@ namespace po = boost::program_options;
 #include <iterator>
 #include <limits>
 #include <random>
+
+#define OTA_PART_SIZE 1024
+#include "ota.hpp"
 
 std::string timeToString() {
   boost::posix_time::ptime timeLocal =
@@ -103,69 +42,6 @@ static std::mt19937 gen(rd());
 uint32_t runif(uint32_t from, uint32_t to) {
   std::uniform_int_distribution<uint32_t> distribution(from, to);
   return distribution(gen);
-}
-
-std::vector<std::string> split(const std::string& s, char delimiter) {
-  std::vector<std::string> tokens;
-  std::string token;
-  std::istringstream tokenStream(s);
-  while (std::getline(tokenStream, token, delimiter)) {
-    tokens.push_back(token);
-  }
-  return tokens;
-}
-
-std::string toString(const md5::digest_type& digest) {
-  const auto charDigest = reinterpret_cast<const char*>(&digest);
-  std::string result;
-  boost::algorithm::hex(charDigest, charDigest + sizeof(md5::digest_type),
-                        std::back_inserter(result));
-  std::transform(result.begin(), result.end(), result.begin(), ::tolower);
-  return result;
-}
-
-struct FileStat {
-  bool newFile;
-  std::string file;
-  std::string md5;
-  std::string hw;
-  std::string role;
-};
-
-FileStat addFile(std::shared_ptr<std::map<std::string, std::string>> files,
-                 boost::filesystem::path p, int dur) {
-  // Check for time since change
-  auto ftime =
-      boost::posix_time::from_time_t(boost::filesystem::last_write_time(p));
-  auto now = boost::posix_time::second_clock::universal_time();
-
-  FileStat stat;
-  stat.newFile = false;
-  // We take some uncertainty in account when this was last run
-  if ((now - ftime).total_milliseconds() < 2 * dur) {
-    stat.file = p.filename().string();
-    auto stem = p.stem().string();
-    if (p.extension().string() != ".bin") return stat;
-    auto fv = split(stem, '_');
-    if (fv[0] != "firmware" || fv.size() < 2) return stat;
-    stat.hw = fv[1];
-    if (fv.size() == 3) stat.role = fv[2];
-    std::ifstream input(p.string(), std::ios::binary);
-    // copies all data into buffer
-    std::vector<unsigned char> buffer(std::istreambuf_iterator<char>(input),
-                                      {});
-    md5 hash;
-    md5::digest_type digest;
-    hash.process_bytes(buffer.data(), buffer.size());
-    hash.get_digest(digest);
-    stat.md5 = toString(digest);
-    if (files->count(stat.md5)) return stat;
-    stat.newFile = true;
-    auto data64 = painlessmesh::base64::encode(buffer.data(), buffer.size());
-    files->operator[](stat.md5) = data64;
-    return stat;
-  }
-  return stat;
 }
 
 int main(int ac, char* av[]) {
@@ -302,14 +178,12 @@ int main(int ac, char* av[]) {
                 announce.role = stat.role;
                 announce.hardware = stat.hw;
                 announce.noPart =
-                    1 + files->operator[](stat.md5).length() / OTA_PART_SIZE;
+                    ceil(((float)files->operator[](stat.md5).length()) / OTA_PART_SIZE);
                 announce.from = mesh.nodeId;
 
                 auto announceTask =
                     mesh.addTask(scheduler, TASK_MINUTE, 60,
                                  [&mesh, &scheduler, announce]() {
-                                   std::cout << "Announcing " <<  std::endl;
-                                   std::cout << announce.md5 << std::endl;
                                    mesh.sendPackage(&announce);
                                  });
                 // after anounce, remove file from memory
@@ -323,12 +197,11 @@ int main(int ac, char* av[]) {
         auto pkg = variant.to<ota::DataRequest>();
         // cut up the data and send it
         if (files->count(pkg.md5)) {
-          std::cout << "Sending data " <<  std::endl;
           auto reply =
               ota::Data::replyTo(pkg,
                                  files->operator[](pkg.md5).substr(
                                      OTA_PART_SIZE * pkg.partNo, OTA_PART_SIZE),
-                                 pkg.partNo + 1);
+                                 pkg.partNo);
           mesh.sendPackage(&reply);
         } else {
           Log(ERROR, "File not found");

@@ -29,6 +29,12 @@ namespace po = boost::program_options;
 #define OTA_PART_SIZE 1024
 #include "ota.hpp"
 
+template <class T>
+// bool contains(T &v, T::value_type const value) {
+bool contains(T& v, std::string const value) {
+  return std::find(v.begin(), v.end(), value) != v.end();
+}
+
 std::string timeToString() {
   boost::posix_time::ptime timeLocal =
       boost::posix_time::second_clock::local_time();
@@ -48,7 +54,7 @@ int main(int ac, char* av[]) {
   try {
     size_t port = 5555;
     std::string ip = "";
-    size_t logLevel = 0;
+    std::vector<std::string> logLevel;
     size_t nodeId = runif(0, std::numeric_limits<uint32_t>::max());
     std::string otaDir;
 
@@ -65,10 +71,8 @@ int main(int ac, char* av[]) {
         "client,c", po::value<std::string>(&ip),
         "Connect to another node as a client. You need to provide the ip "
         "address of the node.")(
-        "log,l", po::value<size_t>(&logLevel)->implicit_value(0),
-        "Log events to the command line. The given level will determine what "
-        "is logged. 0 will log everything, 1 will log everything except "
-        "messages received, 2 will log only messages received.")(
+        "log,l", po::value<std::vector<std::string>>(&logLevel),
+        "Only log given events to the console. By default all events are logged, this allows you to filter which ones to log. Events currently logged are: receive, connect, disconnect, change, offset and delay. This option can be specified multiple times to log multiple types of events.")(
         "ota-dir,d", po::value<std::string>(&otaDir),
         "Watch given folder for new firmware files.");
 
@@ -84,7 +88,7 @@ int main(int ac, char* av[]) {
     Scheduler scheduler;
     boost::asio::io_service io_service;
     painlessMesh mesh;
-    Log.setLogLevel(ERROR | COMMUNICATION | CONNECTION);
+    Log.setLogLevel(ERROR);
     mesh.init(&scheduler, nodeId, port);
     std::shared_ptr<AsyncServer> pServer;
     if (vm.count("server") || !vm.count("client")) {
@@ -100,56 +104,61 @@ int main(int ac, char* av[]) {
           (*pClient), boost::asio::ip::address::from_string(ip), port, mesh);
     }
 
-    if (vm.count("log")) {
-      if (logLevel == 0 || logLevel == 2) {
-        mesh.onReceive([&mesh](uint32_t nodeId, std::string& msg) {
-          std::cout << "{\"event\":\"receive\",\"nodeTime\":"
-                    << mesh.getNodeTime() << ",\"time\":\"" << timeToString()
-                    << "\""
-                    << ",\"nodeId\":" << nodeId << ",\"msg\":\"" << msg << "\"}"
-                    << std::endl;
-        });
-      }
-      if (logLevel < 2) {
-        mesh.onNewConnection([&mesh](uint32_t nodeId) {
-          std::cout << "{\"event\":\"connect\",\"nodeTime\":"
-                    << mesh.getNodeTime() << ",\"time\":\"" << timeToString()
-                    << "\""
-                    << ",\"nodeId\":" << nodeId
-                    << ", \"layout\":" << mesh.asNodeTree().toString() << "}"
-                    << std::endl;
-        });
+    if (logLevel.size() == 0 || contains(logLevel, "receive")) {
+      mesh.onReceive([&mesh](uint32_t nodeId, std::string& msg) {
+        std::cout << "{\"event\":\"receive\",\"nodeTime\":"
+                  << mesh.getNodeTime() << ",\"time\":\"" << timeToString()
+                  << "\""
+                  << ",\"nodeId\":" << nodeId << ",\"msg\":\"" << msg << "\"}"
+                  << std::endl;
+      });
+    }
+    if (logLevel.size() == 0 || contains(logLevel, "connect")) {
+      mesh.onNewConnection([&mesh](uint32_t nodeId) {
+        std::cout << "{\"event\":\"connect\",\"nodeTime\":"
+                  << mesh.getNodeTime() << ",\"time\":\"" << timeToString()
+                  << "\""
+                  << ",\"nodeId\":" << nodeId
+                  << ", \"layout\":" << mesh.asNodeTree().toString() << "}"
+                  << std::endl;
+      });
+    }
 
-        mesh.onDroppedConnection([&mesh](uint32_t nodeId) {
-          std::cout << "{\"event\":\"disconnect\",\"nodeTime\":"
-                    << mesh.getNodeTime() << ",\"time\":\"" << timeToString()
-                    << "\""
-                    << ",\"nodeId\":" << nodeId
-                    << ", \"layout\":" << mesh.asNodeTree().toString() << "}"
-                    << std::endl;
-        });
+    if (logLevel.size() == 0 || contains(logLevel, "disconnect")) {
+      mesh.onDroppedConnection([&mesh](uint32_t nodeId) {
+        std::cout << "{\"event\":\"disconnect\",\"nodeTime\":"
+                  << mesh.getNodeTime() << ",\"time\":\"" << timeToString()
+                  << "\""
+                  << ",\"nodeId\":" << nodeId
+                  << ", \"layout\":" << mesh.asNodeTree().toString() << "}"
+                  << std::endl;
+      });
+    }
 
-        mesh.onChangedConnections([&mesh]() {
-          std::cout << "{\"event\":\"change\",\"nodeTime\":"
-                    << mesh.getNodeTime() << ",\"time\":\"" << timeToString()
-                    << "\""
-                    << ", \"layout\":" << mesh.asNodeTree().toString() << "}"
-                    << std::endl;
-        });
-        mesh.onNodeTimeAdjusted([&mesh](int32_t offset) {
-          std::cout << "{\"event\":\"offset\",\"nodeTime\":"
-                    << mesh.getNodeTime() << ",\"time\":\"" << timeToString()
-                    << "\""
-                    << ",\"offset\":" << offset << "}" << std::endl;
-        });
-        mesh.onNodeDelayReceived([&mesh](uint32_t nodeId, int32_t delay) {
-          std::cout << "{\"event\":\"delay\",\"nodeTime\":"
-                    << mesh.getNodeTime() << ",\"time\":\"" << timeToString()
-                    << "\""
-                    << ",\"nodeId\":" << nodeId << ",\"delay\":" << delay << "}"
-                    << std::endl;
-        });
-      }
+    if (logLevel.size() == 0 || contains(logLevel, "change")) {
+      mesh.onChangedConnections([&mesh]() {
+        std::cout << "{\"event\":\"change\",\"nodeTime\":" << mesh.getNodeTime()
+                  << ",\"time\":\"" << timeToString() << "\""
+                  << ", \"layout\":" << mesh.asNodeTree().toString() << "}"
+                  << std::endl;
+      });
+    }
+
+    if (logLevel.size() == 0 || contains(logLevel, "offset")) {
+      mesh.onNodeTimeAdjusted([&mesh](int32_t offset) {
+        std::cout << "{\"event\":\"offset\",\"nodeTime\":" << mesh.getNodeTime()
+                  << ",\"time\":\"" << timeToString() << "\""
+                  << ",\"offset\":" << offset << "}" << std::endl;
+      });
+    }
+
+    if (logLevel.size() == 0 || contains(logLevel, "delay")) {
+      mesh.onNodeDelayReceived([&mesh](uint32_t nodeId, int32_t delay) {
+        std::cout << "{\"event\":\"delay\",\"nodeTime\":" << mesh.getNodeTime()
+                  << ",\"time\":\"" << timeToString() << "\""
+                  << ",\"nodeId\":" << nodeId << ",\"delay\":" << delay << "}"
+                  << std::endl;
+      });
     }
 
     if (vm.count("ota-dir")) {
@@ -178,7 +187,8 @@ int main(int ac, char* av[]) {
                 announce.role = stat.role;
                 announce.hardware = stat.hw;
                 announce.noPart =
-                    ceil(((float)files->operator[](stat.md5).length()) / OTA_PART_SIZE);
+                    ceil(((float)files->operator[](stat.md5).length()) /
+                         OTA_PART_SIZE);
                 announce.from = mesh.nodeId;
 
                 auto announceTask =

@@ -1,4 +1,10 @@
 
+#include <algorithm>
+#include <boost/algorithm/hex.hpp>
+#include <boost/filesystem.hpp>
+#include <iostream>
+#include <iterator>
+
 #include "Arduino.h"
 
 WiFiClass WiFi;
@@ -9,34 +15,53 @@ ESPClass ESP;
 
 painlessmesh::logger::LogClass Log;
 
-/*
-Reading files:
-
-std::ifstream input( "C:\\Final.gif", std::ios::binary );
-
-// copies all data into buffer
-std::vector<unsigned char> buffer(std::istreambuf_iterator<char>(input), {});
-
-
-Add support for --help, --port (default is 5555), --server, --ip (if neither
-given then --server, else as required.
-*/
-
 #undef F
+#include <boost/date_time.hpp>
 #include <boost/program_options.hpp>
 #define F(string_literal) string_literal
 namespace po = boost::program_options;
 
 #include <iostream>
 #include <iterator>
+#include <limits>
+#include <random>
+
+#define OTA_PART_SIZE 1024
+#include "ota.hpp"
+
+template <class T>
+// bool contains(T &v, T::value_type const value) {
+bool contains(T& v, std::string const value) {
+  return std::find(v.begin(), v.end(), value) != v.end();
+}
+
+std::string timeToString() {
+  boost::posix_time::ptime timeLocal =
+      boost::posix_time::second_clock::local_time();
+  return to_iso_extended_string(timeLocal);
+}
+
+// Will be used to obtain a seed for the random number engine
+static std::random_device rd;
+static std::mt19937 gen(rd());
+
+uint32_t runif(uint32_t from, uint32_t to) {
+  std::uniform_int_distribution<uint32_t> distribution(from, to);
+  return distribution(gen);
+}
 
 int main(int ac, char* av[]) {
   try {
     size_t port = 5555;
     std::string ip = "";
+    std::vector<std::string> logLevel;
+    size_t nodeId = runif(0, std::numeric_limits<uint32_t>::max());
+    std::string otaDir;
 
     po::options_description desc("Allowed options");
     desc.add_options()("help,h", "Produce this help message")(
+        "nodeid,n", po::value<size_t>(&nodeId),
+        "Set nodeID, otherwise set to a random value")(
         "port,p", po::value<size_t>(&port), "The mesh port (default is 5555)")(
         "server,s",
         "Listen to incoming node connections. This is the default, unless "
@@ -45,7 +70,11 @@ int main(int ac, char* av[]) {
         "connections and try to connect to a specific node.")(
         "client,c", po::value<std::string>(&ip),
         "Connect to another node as a client. You need to provide the ip "
-        "address of the node.")("log,l", "Log events to the command line");
+        "address of the node.")(
+        "log,l", po::value<std::vector<std::string>>(&logLevel),
+        "Only log given events to the console. By default all events are logged, this allows you to filter which ones to log. Events currently logged are: receive, connect, disconnect, change, offset and delay. This option can be specified multiple times to log multiple types of events.")(
+        "ota-dir,d", po::value<std::string>(&otaDir),
+        "Watch given folder for new firmware files.");
 
     po::variables_map vm;
     po::store(po::parse_command_line(ac, av, desc), vm);
@@ -56,16 +85,11 @@ int main(int ac, char* av[]) {
       return 0;
     }
 
-    /*if (vm.count("compression")) {
-        cout << "Compression level was set to "
-             << vm["compression"].as<double>() << ".\n";
-    } else {
-        cout << "Compression level was not set.\n";
-    }*/
+    Scheduler scheduler;
     boost::asio::io_service io_service;
     painlessMesh mesh;
     Log.setLogLevel(ERROR);
-    mesh.init(1, port);
+    mesh.init(&scheduler, nodeId, port);
     std::shared_ptr<AsyncServer> pServer;
     if (vm.count("server") || !vm.count("client")) {
       pServer = std::make_shared<AsyncServer>(io_service, port);
@@ -80,42 +104,121 @@ int main(int ac, char* av[]) {
           (*pClient), boost::asio::ip::address::from_string(ip), port, mesh);
     }
 
-    if (vm.count("log")) {
+    if (logLevel.size() == 0 || contains(logLevel, "receive")) {
       mesh.onReceive([&mesh](uint32_t nodeId, std::string& msg) {
-        std::cout << "{\"event\":\"receive\", \"time\":" << mesh.getNodeTime()
+        std::cout << "{\"event\":\"receive\",\"nodeTime\":"
+                  << mesh.getNodeTime() << ",\"time\":\"" << timeToString()
+                  << "\""
                   << ",\"nodeId\":" << nodeId << ",\"msg\":\"" << msg << "\"}"
                   << std::endl;
       });
+    }
+    if (logLevel.size() == 0 || contains(logLevel, "connect")) {
       mesh.onNewConnection([&mesh](uint32_t nodeId) {
-        std::cout << "{\"event\":\"connect\", \"time\":" << mesh.getNodeTime()
+        std::cout << "{\"event\":\"connect\",\"nodeTime\":"
+                  << mesh.getNodeTime() << ",\"time\":\"" << timeToString()
+                  << "\""
                   << ",\"nodeId\":" << nodeId
                   << ", \"layout\":" << mesh.asNodeTree().toString() << "}"
                   << std::endl;
       });
+    }
 
+    if (logLevel.size() == 0 || contains(logLevel, "disconnect")) {
       mesh.onDroppedConnection([&mesh](uint32_t nodeId) {
-        std::cout << "{\"event\":\"disconnect\", \"time\":"
-                  << mesh.getNodeTime() << ",\"nodeId\":" << nodeId
+        std::cout << "{\"event\":\"disconnect\",\"nodeTime\":"
+                  << mesh.getNodeTime() << ",\"time\":\"" << timeToString()
+                  << "\""
+                  << ",\"nodeId\":" << nodeId
                   << ", \"layout\":" << mesh.asNodeTree().toString() << "}"
                   << std::endl;
       });
+    }
 
+    if (logLevel.size() == 0 || contains(logLevel, "change")) {
       mesh.onChangedConnections([&mesh]() {
-        std::cout << "{\"event\":\"change\", \"time\":" << mesh.getNodeTime()
+        std::cout << "{\"event\":\"change\",\"nodeTime\":" << mesh.getNodeTime()
+                  << ",\"time\":\"" << timeToString() << "\""
                   << ", \"layout\":" << mesh.asNodeTree().toString() << "}"
                   << std::endl;
       });
+    }
+
+    if (logLevel.size() == 0 || contains(logLevel, "offset")) {
       mesh.onNodeTimeAdjusted([&mesh](int32_t offset) {
-        std::cout << "{\"event\":\"offset\", \"time\":" << mesh.getNodeTime()
+        std::cout << "{\"event\":\"offset\",\"nodeTime\":" << mesh.getNodeTime()
+                  << ",\"time\":\"" << timeToString() << "\""
                   << ",\"offset\":" << offset << "}" << std::endl;
       });
+    }
+
+    if (logLevel.size() == 0 || contains(logLevel, "delay")) {
       mesh.onNodeDelayReceived([&mesh](uint32_t nodeId, int32_t delay) {
-        std::cout << "{\"event\":\"delay\", \"time\":" << mesh.getNodeTime()
+        std::cout << "{\"event\":\"delay\",\"nodeTime\":" << mesh.getNodeTime()
+                  << ",\"time\":\"" << timeToString() << "\""
                   << ",\"nodeId\":" << nodeId << ",\"delay\":" << delay << "}"
                   << std::endl;
       });
     }
 
+    if (vm.count("ota-dir")) {
+      using namespace painlessmesh;
+      using namespace painlessmesh::plugin;
+      // We probably want to temporary store the file
+      // md5 -> data
+      auto files = std::make_shared<std::map<std::string, std::string>>();
+      // Setup task that monitors the folder for changes
+      auto task = mesh.addTask(
+          scheduler, TASK_SECOND, TASK_FOREVER,
+          [files, &mesh, &scheduler, otaDir]() {
+            // TODO: Scan for change
+            boost::filesystem::path p(otaDir);
+            boost::filesystem::directory_iterator end_itr;
+            for (boost::filesystem::directory_iterator itr(p); itr != end_itr;
+                 ++itr) {
+              if (!boost::filesystem::is_regular_file(itr->path())) {
+                continue;
+              }
+              auto stat = addFile(files, itr->path(), TASK_SECOND);
+              if (stat.newFile) {
+                // When change, announce it, load it into files
+                ota::Announce announce;
+                announce.md5 = stat.md5;
+                announce.role = stat.role;
+                announce.hardware = stat.hw;
+                announce.noPart =
+                    ceil(((float)files->operator[](stat.md5).length()) /
+                         OTA_PART_SIZE);
+                announce.from = mesh.nodeId;
+
+                auto announceTask =
+                    mesh.addTask(scheduler, TASK_MINUTE, 60,
+                                 [&mesh, &scheduler, announce]() {
+                                   mesh.sendPackage(&announce);
+                                 });
+                // after anounce, remove file from memory
+                announceTask->setOnDisable(
+                    [files, md5 = stat.md5]() { files->erase(md5); });
+              }
+            }
+          });
+      // Setup reply to data requests
+      mesh.onPackage(11, [files, &mesh](protocol::Variant variant) {
+        auto pkg = variant.to<ota::DataRequest>();
+        // cut up the data and send it
+        if (files->count(pkg.md5)) {
+          auto reply =
+              ota::Data::replyTo(pkg,
+                                 files->operator[](pkg.md5).substr(
+                                     OTA_PART_SIZE * pkg.partNo, OTA_PART_SIZE),
+                                 pkg.partNo);
+          mesh.sendPackage(&reply);
+        } else {
+          Log(ERROR, "File not found");
+        }
+        return true;
+      });
+    }
     while (true) {
       usleep(1000);  // Tweak this for acceptable cpu usage
       mesh.update();

@@ -54,6 +54,8 @@ inline void yield() {}
 #define ICACHE_FLASH_ATTR
 
 #define PAINLESSMESH_ENABLE_STD_STRING
+#define PAINLESSMESH_ENABLE_OTA
+#define NODE_TIMEOUT 5 * TASK_SECOND
 
 typedef std::string TSTRING;
 
@@ -64,7 +66,7 @@ typedef std::string TSTRING;
 #endif  // DEBUG
 
 #include "fake_serial.hpp"
-#include "BoostAsyncTCP.hpp"
+#include "boost/asynctcp.hpp"
 
 
 typedef enum {

@@ -19,3 +19,5 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 ADD_EXECUTABLE(painlessMeshBoost src/main.cpp src/fake_serial.cpp libs/painlessMesh/src/painlessMeshConnection.cpp libs/painlessMesh/src/scheduler.cpp)
 target_include_directories(painlessMeshBoost PUBLIC src/ libs/TaskScheduler/src/ libs/ArduinoJson/ libs/painlessMesh/src/ libs/uuid/include/)
 TARGET_LINK_LIBRARIES(painlessMeshBoost ${Boost_LIBRARIES})
+
+install(TARGETS painlessMeshBoost DESTINATION bin)

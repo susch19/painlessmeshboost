@@ -20,7 +20,7 @@ sudo apt-get install libboost-system-dev libboost-thread-dev libboost-regex-dev 
 
 ## Usage
 
-`painlessMeshBoost` can be run as both a server and/or a client node. By default it runs as a server node. You can log events to the console using: `painlessMeshBoost --log 0` (this includes all messages received). To expand the nodes behaviour further you can change the source code in `src/main.cpp`. The painlessMesh implementation is the same as in the original code and can therefore be changed in a similar way. 
+`painlessMeshBoost` can be run as both a server and/or a client node. By default it runs as a server node. You can log events to the console using: `painlessMeshBoost --log <event>` (if --log is not specified it will log all events). To expand the nodes behaviour further you can change the source code in `src/main.cpp`. The painlessMesh implementation is the same as in the original code and can therefore be changed in a similar way. 
 
 ### Server
 

@@ -12,6 +12,7 @@ ESPClass ESP;
 
 #include "painlessMesh.h"
 #include "painlessMeshConnection.h"
+#include "plugin/performance.hpp"
 
 painlessmesh::logger::LogClass Log;
 
@@ -51,6 +52,7 @@ uint32_t runif(uint32_t from, uint32_t to) {
 }
 
 int main(int ac, char* av[]) {
+  using namespace painlessmesh;
   try {
     size_t port = 5555;
     std::string ip = "";
@@ -72,9 +74,12 @@ int main(int ac, char* av[]) {
         "Connect to another node as a client. You need to provide the ip "
         "address of the node.")(
         "log,l", po::value<std::vector<std::string>>(&logLevel),
-        "Only log given events to the console. By default all events are logged, this allows you to filter which ones to log. Events currently logged are: receive, connect, disconnect, change, offset and delay. This option can be specified multiple times to log multiple types of events.")(
-        "ota-dir,d", po::value<std::string>(&otaDir),
-        "Watch given folder for new firmware files.");
+        "Only log given events to the console. By default all events are "
+        "logged, this allows you to filter which ones to log. Events currently "
+        "logged are: receive, connect, disconnect, change, offset and delay. "
+        "This option can be specified multiple times to log multiple types of "
+        "events.")("ota-dir,d", po::value<std::string>(&otaDir),
+                   "Watch given folder for new firmware files.");
 
     po::variables_map vm;
     po::store(po::parse_command_line(ac, av, desc), vm);
@@ -161,16 +166,18 @@ int main(int ac, char* av[]) {
       });
     }
 
+    if (logLevel.size() == 0 || contains(logLevel, "performance")) {
+      plugin::performance::begin(mesh);
+    }
+
     if (vm.count("ota-dir")) {
-      using namespace painlessmesh;
       using namespace painlessmesh::plugin;
       // We probably want to temporary store the file
       // md5 -> data
       auto files = std::make_shared<std::map<std::string, std::string>>();
       // Setup task that monitors the folder for changes
-      auto task = mesh.addTask(
-          scheduler, TASK_SECOND, TASK_FOREVER,
-          [files, &mesh, &scheduler, otaDir]() {
+      auto task =
+          mesh.addTask(TASK_SECOND, TASK_FOREVER, [files, &mesh, otaDir]() {
             // TODO: Scan for change
             boost::filesystem::path p(otaDir);
             boost::filesystem::directory_iterator end_itr;
@@ -189,13 +196,11 @@ int main(int ac, char* av[]) {
                 announce.noPart =
                     ceil(((float)files->operator[](stat.md5).length()) /
                          OTA_PART_SIZE);
-                announce.from = mesh.nodeId;
+                announce.from = mesh.getNodeId();
 
-                auto announceTask =
-                    mesh.addTask(scheduler, TASK_MINUTE, 60,
-                                 [&mesh, &scheduler, announce]() {
-                                   mesh.sendPackage(&announce);
-                                 });
+                auto announceTask = mesh.addTask(
+                    TASK_MINUTE, 60,
+                    [&mesh, announce]() { mesh.sendPackage(&announce); });
                 // after anounce, remove file from memory
                 announceTask->setOnDisable(
                     [files, md5 = stat.md5]() { files->erase(md5); });

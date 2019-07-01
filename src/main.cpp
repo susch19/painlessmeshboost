@@ -59,6 +59,7 @@ int main(int ac, char* av[]) {
     std::vector<std::string> logLevel;
     size_t nodeId = runif(0, std::numeric_limits<uint32_t>::max());
     std::string otaDir;
+    double performance = 2.0;
 
     po::options_description desc("Allowed options");
     desc.add_options()("help,h", "Produce this help message")(
@@ -79,7 +80,11 @@ int main(int ac, char* av[]) {
         "logged are: receive, connect, disconnect, change, offset and delay. "
         "This option can be specified multiple times to log multiple types of "
         "events.")("ota-dir,d", po::value<std::string>(&otaDir),
-                   "Watch given folder for new firmware files.");
+                   "Watch given folder for new firmware files.")(
+        "performance", po::value<double>(&performance)->implicit_value(2.0),
+        "Enable performance monitoring. Optional value is frequency (per "
+        "second) to send performance monitoring packages. Default is every 2 "
+        "seconds.");
 
     po::variables_map vm;
     po::store(po::parse_command_line(ac, av, desc), vm);
@@ -166,8 +171,8 @@ int main(int ac, char* av[]) {
       });
     }
 
-    if (logLevel.size() == 0 || contains(logLevel, "performance")) {
-      plugin::performance::begin(mesh);
+    if (vm.count("performance")) {
+      plugin::performance::begin(mesh, performance);
     }
 
     if (vm.count("ota-dir")) {

@@ -107,9 +107,8 @@ int main(int ac, char* av[]) {
                                                                   mesh);
     }
 
-    std::shared_ptr<AsyncClient> pClient;
     if (vm.count("client")) {
-      pClient = std::make_shared<AsyncClient>(io_service);
+      auto pClient = new AsyncClient(io_service);
       painlessmesh::tcp::connect<MeshConnection, painlessMesh>(
           (*pClient), boost::asio::ip::address::from_string(ip), port, mesh);
     }

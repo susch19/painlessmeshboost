@@ -15,7 +15,7 @@ sudo make install
 `painlessMeshBoost` depends on a number of boost libraries. On ubuntu (or other debian derivatives) these can be installed with:
 
 ```
-sudo apt-get install libboost-system-dev libboost-thread-dev libboost-regex-dev libboost-p rogram-options-dev libboost-chrono-dev libboost-date-time-dev libboost-atomic-dev libboost-filesystem-dev
+sudo apt-get install libboost-system-dev libboost-thread-dev libboost-regex-dev libboost-program-options-dev libboost-chrono-dev libboost-date-time-dev libboost-atomic-dev libboost-filesystem-dev
 ```
 
 ## Usage

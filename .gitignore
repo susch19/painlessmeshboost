@@ -5,3 +5,11 @@ bin/*
 cmake_install.cmake
 install_manifest.txt
 compile_commands.json
+.git
+*.pem
+.vscode
+build/*
+libs/*
+*.json
+*.bak
+.vs

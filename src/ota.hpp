@@ -29,6 +29,7 @@ struct FileStat {
   std::string md5;
   std::string hw;
   std::string role;
+  size_t packageSize;
 };
 
 FileStat addFile(std::shared_ptr<std::map<std::string, std::string>> files,
@@ -41,14 +42,16 @@ FileStat addFile(std::shared_ptr<std::map<std::string, std::string>> files,
   FileStat stat;
   stat.newFile = false;
   // We take some uncertainty in account when this was last run
-  if ((now - ftime).total_milliseconds() < 2 * dur) {
+  if ((now - ftime).total_milliseconds() < 40 * dur) {
     stat.file = p.filename().string();
     auto stem = p.stem().string();
     if (p.extension().string() != ".bin") return stat;
     auto fv = split(stem, '_');
     if (fv[0] != "firmware" || fv.size() < 2) return stat;
     stat.hw = fv[1];
-    if (fv.size() == 3) stat.role = fv[2];
+    if (fv.size() >= 3) stat.role = fv[2];
+    if (fv.size() >= 4) stat.packageSize = std::stoi(fv[3]);
+    else stat.packageSize = 2048;
     std::ifstream input(p.string(), std::ios::binary);
     // copies all data into buffer
     std::vector<unsigned char> buffer(std::istreambuf_iterator<char>(input),

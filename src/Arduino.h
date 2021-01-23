@@ -54,10 +54,12 @@ inline void yield() {}
 #define ICACHE_FLASH_ATTR
 
 #define PAINLESSMESH_ENABLE_STD_STRING
-#define PAINLESSMESH_ENABLE_OTA
+// #define PAINLESSMESH_ENABLE_OTA
 #define NODE_TIMEOUT 5 * TASK_SECOND
 
 typedef std::string TSTRING;
+
+typedef std::string String;
 
 #ifdef ESP32
 #define MAX_CONN 10
@@ -80,21 +82,123 @@ typedef enum {
     WL_DISCONNECTED     = 6
 } wl_status_t;
 
+
+class FakeIPAddress{
+  std::string ip;
+
+  public:
+  FakeIPAddress(std::string ip):ip(ip){}
+
+  std::string toString(){
+    return ip;
+  }
+
+};
+
 class WiFiClass {
  public:
   void disconnect() {}
   auto status() {
     return WL_CONNECTED;
   }
+
+  FakeIPAddress localIP(){
+    return FakeIPAddress("192.168.49.24");
+  }
+
 };
+
+namespace fs{
+  enum class SeekMode{
+    SeekSet,
+
+  };
+}
+
 
 class ESPClass {
  public:
   size_t getFreeHeap() { return 1e6; }
+  size_t system_get_free_heap_size() {return 1e6;}
 };
+
+class File{
+public:
+  uint8_t read(){
+    return 0;
+  }
+  size_t read(uint8_t* target, size_t length){
+    return 0;
+  }
+  size_t readBytes(char* buffer, size_t length){
+    return 0;
+  }
+
+  void close() {}
+
+  size_t write(uint8_t value){
+    return 0;
+  }
+
+  size_t write(uint8_t* value, size_t length){
+    return 0;
+  }
+
+  size_t print(std::string value){
+    return 0;
+  }
+
+  std::string readString(){
+    return "";
+  }
+
+  size_t size(){
+    return 0;
+  }
+
+  bool seek(size_t begin, fs::SeekMode mode){
+    return false;
+  }
+};
+
+class LittleFS{
+public:
+  bool exists(std::string filename){
+    return false;
+  }
+
+  void remove(std::string filename){}
+  File open(std::string filename, std::string mode)
+  {
+    return File();
+  }
+};
+
+class Update{
+  
+public:
+  bool begin(size_t size){
+    return false;
+  }
+
+  size_t write(uint8_t* value, size_t length){
+    return 0;
+  }
+
+  bool isRunning(){
+    return false;
+  }
+  bool end(bool force){
+    return false;
+  }
+
+};
+
 
 extern WiFiClass WiFi;
 extern ESPClass ESP;
+extern LittleFS LittleFS;
+extern Update Update;
 
 #endif
 #endif

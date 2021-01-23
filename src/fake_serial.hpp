@@ -15,15 +15,27 @@
 */
 #pragma once
 
+#include <stdarg.h>
 #include <iostream>
 
 class FakeSerial {
  public:
-  void begin(unsigned long);
+  void begin(unsigned long speed);
   void end();
-  size_t write(const unsigned char*, size_t);
-  void print(const char*);
+  size_t write(const unsigned char* buf, size_t size);
+  void print(const char* buf);
   void println();
+  void println(const char* buf);
+
+  // template <typename... Args>
+  // int printf(const char* fmt, Args&&... args) {
+  //   return std::printf(fmt, std::forward<Args>(args)...);
+  // }
+
+  template <typename... Args>
+  int printf(const char* fmt, Args... args) {
+    return std::printf(fmt, std::forward<Args>(args)...);
+  }
 };
 
 extern FakeSerial Serial;

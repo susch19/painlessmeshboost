@@ -1,7 +1,9 @@
 cmake_minimum_required (VERSION 2.6)
 project (painlessMeshBoost)
 
-set(CMAKE_CXX_STANDARD 14)
+add_definitions(-DLINUX_ENVIRONMENT)
+
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -20,8 +22,11 @@ ENDIF(Boost_FOUND)
 
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -g")
 
-ADD_EXECUTABLE(painlessMeshBoost src/main.cpp src/fake_serial.cpp src/chat_client.cpp libs/painlessMesh/src/painlessMeshConnection.cpp libs/painlessMesh/src/scheduler.cpp src/filesystemwatcher.cpp )
-target_include_directories(painlessMeshBoost PUBLIC src/ libs/TaskScheduler/src/ libs/ArduinoJson/ libs/painlessMesh/src/ libs/uuid/include/)
+ADD_EXECUTABLE(painlessMeshBoost 
+src/main.cpp src/fake_serial.cpp src/chat_client.cpp src/filesystemwatcher.cpp  src/LittleFSWrapper.cpp
+libs/painlessmesh/src/painlessMeshConnection.cpp libs/painlessmesh/src/painlessmesh/packageTypeProvider.cpp libs/painlessmesh/src/scheduler.cpp
+libs/PainlessMeshSmarthome/src/Device.cpp libs/PainlessMeshSmarthome/src/painlessMeshPlugins/MeshDevice.cpp libs/PainlessMeshSmarthome/src/painlessMeshPlugins/MeshOta.cpp libs/PainlessMeshSmarthome/src/Ota.cpp)
+target_include_directories(painlessMeshBoost PUBLIC src/ libs/esptility/src/ libs/TaskScheduler/src/ libs/ArduinoJson/ libs/painlessmesh/src/ libs/PainlessMeshSmarthome/src/ libs/uuid/include/ libs/PainlessMeshSmarthome/src/painlessMeshPlugins)
 TARGET_LINK_LIBRARIES(painlessMeshBoost ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES})
 
 install(TARGETS painlessMeshBoost DESTINATION bin)

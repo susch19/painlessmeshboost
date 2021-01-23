@@ -1,4 +1,4 @@
-
+// #define LINUX_ENVIRONMENT
 #include <algorithm>
 #include <functional>
 #include <iostream>
@@ -13,7 +13,7 @@
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
 #include <boost/bind.hpp>
-#include <boost/date_time.hpp>
+// #include <boost/date_time.hpp>
 #include <boost/endian/arithmetic.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
@@ -22,13 +22,13 @@
 #include <chat_client.hpp>
 
 #define F(string_literal) string_literal
-#define String std::string
+using String=std::string;
 WiFiClass WiFi;
 ESPClass ESP;
 
 #include "painlessMesh.h"
 #include "painlessMeshConnection.h"
-#include "plugin/performance.hpp"
+// #include "plugin/performance.hpp"
 
 painlessmesh::logger::LogClass Log;
 
@@ -42,7 +42,7 @@ namespace po = boost::program_options;
 
 using boost::asio::ip::tcp;
 #define OTA_PART_SIZE 3072
-#include "ota.hpp"
+#include "piota.hpp"
 using namespace boost::endian;
 
 namespace ssl = boost::asio::ssl;
@@ -54,11 +54,11 @@ bool contains(T& v, std::string const value) {
     return std::find(v.begin(), v.end(), value) != v.end();
 }
 
-std::string timeToString() {
-    boost::posix_time::ptime timeLocal =
-            boost::posix_time::second_clock::local_time();
-    return to_iso_extended_string(timeLocal);
-}
+// std::string timeToString() {
+//     boost::posix_time::ptime timeLocal =
+//             boost::posix_time::second_clock::local_time();
+//     return to_iso_extended_string(timeLocal);
+// }
 
 
 using boost::asio::ip::tcp;
@@ -115,10 +115,6 @@ int main(int ac, char* av[]) {
                     "This option can be specified multiple times to log multiple types of "
                     "events.")("ota-dir,d", po::value<std::string>(&otaDir),
                                "Watch given folder for new firmware files.")(
-                    "performance", po::value<double>(&performance)->implicit_value(2.0),
-                    "Enable performance monitoring. Optional value is frequency (per "
-                    "second) to send performance monitoring packages. Default is every 2 "
-                    "seconds.")(
                     "serverip,S", po::value<std::string>(&serverIp),
                     "AppBroker Server IP (default is 8801)")(
                     "serverport,P", po::value<std::string>(&serverPort),
@@ -148,7 +144,7 @@ int main(int ac, char* av[]) {
         painlessMesh mesh;
         Log.setLogLevel(ERROR);
         //mesh.init(&scheduler, nodeId, port);
-        mesh.init(&scheduler, nodeId, port);
+        mesh.init(&scheduler, nodeId);
         std::shared_ptr<AsyncServer> pServer;
 
         c_client.setHandleMessageReceiveHandler([&mesh, &c_client](const mesh_message& mm) {
@@ -267,8 +263,6 @@ int main(int ac, char* av[]) {
 
         //        if (vm.count("ota-dir")) {
 
-
-
         //            using namespace painlessmesh::plugin;
         //            // We probably want to temporary store the file
         //            // md5 -> data
@@ -324,59 +318,59 @@ int main(int ac, char* av[]) {
         //            });
         //        }
         if (vm.count("ota-dir")) {
-            using namespace painlessmesh::plugin;
-            // We probably want to temporary store the file
-            // md5 -> data
-            auto files = std::make_shared<std::map<std::string, std::string>>();
-            // Setup task that monitors the folder for changes
-            auto task =
-                    mesh.addTask(TASK_SECOND, TASK_FOREVER, [files, &mesh, otaDir]() {
-                // TODO: Scan for change
-                boost::filesystem::path p(otaDir);
-                boost::filesystem::directory_iterator end_itr;
-                for (boost::filesystem::directory_iterator itr(p); itr != end_itr;
-                     ++itr) {
-                    if (!boost::filesystem::is_regular_file(itr->path())) {
-                        continue;
-                    }
-                    auto stat = addFile(files, itr->path(), TASK_SECOND);
-                    if (stat.newFile) {
-                        // When change, announce it, load it into files
-                        ota::Announce announce;
-                        announce.md5 = stat.md5;
-                        announce.role = stat.role;
-                        announce.hardware = stat.hw;
-                        announce.noPart =
-                                ceil(((float)files->operator[](stat.md5).length()) /
-                                stat.packageSize);
-                        announce.from = mesh.getNodeId();
-                        announce.packageSize = stat.packageSize;
+            // using namespace painlessmesh::plugin;
+            // // We probably want to temporary store the file
+            // // md5 -> data
+            // auto files = std::make_shared<std::map<std::string, std::string>>();
+            // // Setup task that monitors the folder for changes
+            // auto task =
+            //         mesh.addTask(TASK_SECOND, TASK_FOREVER, [files, &mesh, otaDir]() {
+            //     // TODO: Scan for change
+            //     boost::filesystem::path p(otaDir);
+            //     boost::filesystem::directory_iterator end_itr;
+            //     for (boost::filesystem::directory_iterator itr(p); itr != end_itr;
+            //          ++itr) {
+            //         if (!boost::filesystem::is_regular_file(itr->path())) {
+            //             continue;
+            //         }
+            //         auto stat = addFile(files, itr->path(), TASK_SECOND);
+            //         if (stat.newFile) {
+            //             // When change, announce it, load it into files
+            //             ota::Announce announce;
+            //             announce.md5 = stat.md5;
+            //             announce.role = stat.role;
+            //             announce.hardware = stat.hw;
+            //             announce.noPart =
+            //                     ceil(((float)files->operator[](stat.md5).length()) /
+            //                     stat.packageSize);
+            //             announce.from = mesh.getNodeId();
+            //             announce.packageSize = stat.packageSize;
 
-                        auto announceTask = mesh.addTask(
-                                    TASK_MINUTE, 60,
-                                    [&mesh, announce]() { mesh.sendPackage(&announce); });
-                        // after anounce, remove file from memory
-                        announceTask->setOnDisable(
-                                    [files, md5 = stat.md5]() { files->erase(md5); });
-                    }
-                }
-            });
-            // Setup reply to data requests
-            mesh.onPackage(11, [files, &mesh](protocol::Variant variant) {
-                auto pkg = variant.to<ota::DataRequest>();
-                // cut up the data and send it
-                if (files->count(pkg.md5)) {
-                    auto reply =
-                            ota::Data::replyTo(pkg,
-                                               files->operator[](pkg.md5).substr(
-                                pkg.packageSize * pkg.partNo, pkg.packageSize),
-                            pkg.partNo);
-                    mesh.sendPackage(&reply);
-                } else {
-                    Log(ERROR, "File not found");
-                }
-                return true;
-            });
+            //             auto announceTask = mesh.addTask(
+            //                         TASK_MINUTE, 60,
+            //                         [&mesh, announce]() { mesh.sendPackage(&announce); });
+            //             // after anounce, remove file from memory
+            //             announceTask->setOnDisable(
+            //                         [files, md5 = stat.md5]() { files->erase(md5); });
+            //         }
+            //     }
+            // });
+            // // Setup reply to data requests
+            // mesh.onPackage(11, [files, &mesh](protocol::Variant variant) {
+            //     auto pkg = variant.to<ota::DataRequest>();
+            //     // cut up the data and send it
+            //     if (files->count(pkg.md5)) {
+            //         auto reply =
+            //                 ota::Data::replyTo(pkg,
+            //                                    files->operator[](pkg.md5).substr(
+            //                     pkg.packageSize * pkg.partNo, pkg.packageSize),
+            //                 pkg.partNo);
+            //         mesh.sendPackage(&reply);
+            //     } else {
+            //         Log(ERROR, "File not found");
+            //     }
+            //     return true;
+            // });
         }
 
         while (true) {

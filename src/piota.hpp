@@ -42,31 +42,31 @@ FileStat addFile(std::shared_ptr<std::map<std::string, std::string>> files,
   FileStat stat;
   stat.newFile = false;
   // We take some uncertainty in account when this was last run
-  if ((now - ftime).total_milliseconds() < 40 * dur) {
-    stat.file = p.filename().string();
-    auto stem = p.stem().string();
-    if (p.extension().string() != ".bin") return stat;
-    auto fv = split(stem, '_');
-    if (fv[0] != "firmware" || fv.size() < 2) return stat;
-    stat.hw = fv[1];
-    if (fv.size() >= 3) stat.role = fv[2];
-    if (fv.size() >= 4) stat.packageSize = std::stoi(fv[3]);
-    else stat.packageSize = 2048;
-    std::ifstream input(p.string(), std::ios::binary);
-    // copies all data into buffer
-    std::vector<unsigned char> buffer(std::istreambuf_iterator<char>(input),
-                                      {});
-    md5 hash;
-    md5::digest_type digest;
-    hash.process_bytes(buffer.data(), buffer.size());
-    hash.get_digest(digest);
-    stat.md5 = toString(digest);
-    if (files->count(stat.md5)) return stat;
-    stat.newFile = true;
-    auto data64 = painlessmesh::base64::encode(buffer.data(), buffer.size());
-    files->operator[](stat.md5) = data64;
-    return stat;
-  }
+  // if ((now - ftime).total_milliseconds() < 40 * dur) {
+  //   stat.file = p.filename().string();
+  //   auto stem = p.stem().string();
+  //   if (p.extension().string() != ".bin") return stat;
+  //   auto fv = split(stem, '_');
+  //   if (fv[0] != "firmware" || fv.size() < 2) return stat;
+  //   stat.hw = fv[1];
+  //   if (fv.size() >= 3) stat.role = fv[2];
+  //   if (fv.size() >= 4) stat.packageSize = std::stoi(fv[3]);
+  //   else stat.packageSize = 2048;
+  //   std::ifstream input(p.string(), std::ios::binary);
+  //   // copies all data into buffer
+  //   std::vector<unsigned char> buffer(std::istreambuf_iterator<char>(input),
+  //                                     {});
+  //   md5 hash;
+  //   md5::digest_type digest;
+  //   hash.process_bytes(buffer.data(), buffer.size());
+  //   hash.get_digest(digest);
+  //   stat.md5 = toString(digest);
+  //   if (files->count(stat.md5)) return stat;
+  //   stat.newFile = true;
+  //   auto data64 = painlessmesh::base64::encode(buffer.data(), buffer.size());
+  //   files->operator[](stat.md5) = data64;
+  //   return stat;
+  // }
   return stat;
 }
 

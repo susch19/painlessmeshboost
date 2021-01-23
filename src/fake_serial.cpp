@@ -48,5 +48,8 @@ size_t FakeSerial::write(const unsigned char buf[], size_t size) {
 void FakeSerial::print(const char* buf) { std::cout << buf; }
 
 void FakeSerial::println() { std::cout << std::endl; }
+void FakeSerial::println(const char* buf) { std::cout << buf << std::endl; }
+
+
 
 FakeSerial Serial;

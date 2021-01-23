@@ -25,7 +25,7 @@ chat_client::chat_client(boost::asio::io_service &io_service, std::string url, s
     _ctx.set_default_verify_paths();
     _ctx.set_verify_mode(ssl::verify_peer);
     {
-        std::ifstream stream("/etc/ssl/private/appbroker_client_key.pem");
+        std::ifstream stream("/home/susch/appbroker_client_key.pem");
         std::string str((std::istreambuf_iterator<char>(stream)),
                         std::istreambuf_iterator<char>());
 

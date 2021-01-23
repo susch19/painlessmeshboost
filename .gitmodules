@@ -10,3 +10,14 @@
 [submodule "libs/uuid"]
 	path = libs/uuid
 	url = https://github.com/boostorg/uuid.git
+[submodule "painlessmesh"]
+	path = libs/painlessmesh
+	url = https://github.com/susch19/painlessMesh.git
+	branch = rewrite/binary
+[submodule "libs/esptility"]
+	path = libs/esptility
+	url = https://github.com/susch19/ESPtility.git
+[submodule "PainlessMeshSmarthome"]
+	path = libs/PainlessMeshSmarthome
+	url = https://github.com/susch19/PainlessMesh-Smarthome.git
+	branch = rewrite/binaryPainless

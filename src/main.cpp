@@ -23,11 +23,15 @@
 
 #define F(string_literal) string_literal
 using String=std::string;
+
+#include "painlessMeshConnection.h"
+#include "painlessMesh.h"
+
 WiFiClass WiFi;
 ESPClass ESP;
+class LittleFS LittleFS;
+class Update Update;
 
-#include "painlessMesh.h"
-#include "painlessMeshConnection.h"
 // #include "plugin/performance.hpp"
 
 painlessmesh::logger::LogClass Log;

@@ -69,44 +69,7 @@ typedef std::string String;
 
 #include "fake_serial.hpp"
 #include "boost/asynctcp.hpp"
-
-
-typedef enum {
-    WL_NO_SHIELD        = 255,   // for compatibility with WiFi Shield library
-    WL_IDLE_STATUS      = 0,
-    WL_NO_SSID_AVAIL    = 1,
-    WL_SCAN_COMPLETED   = 2,
-    WL_CONNECTED        = 3,
-    WL_CONNECT_FAILED   = 4,
-    WL_CONNECTION_LOST  = 5,
-    WL_DISCONNECTED     = 6
-} wl_status_t;
-
-
-class FakeIPAddress{
-  std::string ip;
-
-  public:
-  FakeIPAddress(std::string ip):ip(ip){}
-
-  std::string toString(){
-    return ip;
-  }
-
-};
-
-class WiFiClass {
- public:
-  void disconnect() {}
-  auto status() {
-    return WL_CONNECTED;
-  }
-
-  FakeIPAddress localIP(){
-    return FakeIPAddress("192.168.49.24");
-  }
-
-};
+#include "wifi.hpp"
 
 namespace fs{
   enum class SeekMode{
@@ -114,7 +77,6 @@ namespace fs{
 
   };
 }
-
 
 class ESPClass {
  public:
@@ -194,11 +156,10 @@ public:
 
 };
 
-
 extern WiFiClass WiFi;
 extern ESPClass ESP;
-extern LittleFS LittleFS;
-extern Update Update;
+extern class LittleFS LittleFS;
+extern class Update Update;
 
 #endif
 #endif

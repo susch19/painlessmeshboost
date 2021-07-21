@@ -25,20 +25,33 @@ chat_client::chat_client(boost::asio::io_service &io_service, std::string url, s
     _ctx.set_default_verify_paths();
     _ctx.set_verify_mode(ssl::verify_peer);
     {
-        std::ifstream stream("/home/susch/appbroker_client_key.pem");
+        std::cout << "loading client key.pem" << std::endl;
+        std::ifstream stream("/etc/ssl/private/appbroker_client_key.pem");
         std::string str((std::istreambuf_iterator<char>(stream)),
                         std::istreambuf_iterator<char>());
 
+        std::cout << "loaded client key.pem" << std::endl;
+
+        auto temp = new char[str.size()+1];
+        strcpy(temp, str.c_str());
         const boost::asio::const_buffer c(str.c_str(), str.size());
+                std::cout << "Buf:"<<(void *)c.data() << " cstr:"  << (void *)str.c_str() << std::endl;
         _ctx.use_private_key(c, ssl::context::file_format::pem);
+        std::cout << "used client key.pem" << std::endl;
     }
     {
+        std::cout << "loading client cert.pem" << std::endl;
         std::ifstream stream("/etc/ssl/certs/appbroker_client_cert.pem");
         std::string str((std::istreambuf_iterator<char>(stream)),
                         std::istreambuf_iterator<char>());
 
-        const boost::asio::const_buffer c(str.c_str(), str.size());
+        std::cout << "loaded client cert.pem" << std::endl;
+
+        auto temp = new char[str.size()+1];
+        strcpy(temp, str.c_str());
+        const boost::asio::const_buffer c(temp, str.size());
         _ctx.use_certificate(c, ssl::context::file_format::pem);
+        std::cout << "used client cert.pem" << std::endl;
     }
     initialize(true);
 }
@@ -71,7 +84,34 @@ void chat_client::handle_connect(const boost::system::error_code& error) {
     if (!error) {
         _socket->set_verify_mode(ssl::verify_peer);
 
-        _socket->set_verify_callback(ssl::rfc2818_verification("smarthome.susch.eu"));
+        auto verifyCallback = [](bool preverified,
+                boost::asio::ssl::verify_context& ctx) {
+
+                std::cout << "Verifying certificate, pre-verified: " << std::string(preverified ? "true" : "false");
+                char subject_name[256];
+                X509* cert = X509_STORE_CTX_get_current_cert(ctx.native_handle());
+                X509_NAME_oneline(X509_get_subject_name(cert), subject_name, 256);
+
+                unsigned char thumbprint[256];
+                auto digest = EVP_get_digestbyname("SHA1");
+                unsigned int len;
+                X509_digest(cert, digest, thumbprint, &len);
+                std::string tempthumb((char*)thumbprint, len);
+
+                std::cout << "Verifying, subject: " << subject_name << " thumb:" ;
+
+                boost::algorithm::hex(tempthumb.begin(), tempthumb.end(), std::ostream_iterator<char> {std::cout, ""});
+                std::cout << "\n";
+
+                char issuer_name[256];
+                X509_NAME_oneline(X509_get_issuer_name(cert), issuer_name, 256);
+                std::cout << "Verifying, issuer: " << issuer_name << "\n";
+
+                return true;
+              };
+
+        _socket->set_verify_callback(verifyCallback);
+        //???? _socket->set_verify_callback(ssl::rfc2818_verification("smarthome.susch.eu"));
         _socket->handshake(ssl_socket::client);
         boost::asio::async_read(
                     *_socket,

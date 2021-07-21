@@ -12,3 +12,5 @@ build/*
 *.json
 *.bak
 .vs
+libs/*
+CMakeLists.txt.user*

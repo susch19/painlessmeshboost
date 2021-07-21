@@ -2,9 +2,23 @@
 #include <algorithm>
 #include <functional>
 #include <iostream>
+#include <iterator>// #define LINUX_ENVIRONMENT
+#include <algorithm>
+#include <functional>
+#include <iostream>
 #include <iterator>
 #include "Arduino.h"
 #include <cstdint>
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h> /* for strncpy */
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <net/if.h>
+#include <arpa/inet.h>
 
 #include <csignal>
 
@@ -20,12 +34,15 @@
 #include <boost/thread/thread.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <chat_client.hpp>
+#include <iterator>
 
 #define F(string_literal) string_literal
 using String=std::string;
 
 #include "painlessMeshConnection.h"
 #include "painlessMesh.h"
+#include "serializer.hpp"
+#include "package.hpp"
 
 WiFiClass WiFi;
 ESPClass ESP;
@@ -58,40 +75,50 @@ bool contains(T& v, std::string const value) {
     return std::find(v.begin(), v.end(), value) != v.end();
 }
 
-// std::string timeToString() {
-//     boost::posix_time::ptime timeLocal =
-//             boost::posix_time::second_clock::local_time();
-//     return to_iso_extended_string(timeLocal);
-// }
+
 
 
 using boost::asio::ip::tcp;
 
 void handleNonMeshMessage(painlessMesh &mesh, std::string str, chat_client &c_client){
-    boost::property_tree::ptree pt;
-    std::stringstream sstr(str);
-    boost::property_tree::read_json(sstr, pt);
-    auto m = pt.get_child_optional("m");
-    auto c = pt.get_child_optional("c");
-    if(!m || !c){
-        std::cout << "Message or Command seems to be null in msg: " <<str << std::endl;
-        return;
-    }
-    if(pt.get_child("m").get_value<std::string>() == "Get" && pt.get_child("c").get_value<std::string>() == "Mesh" ){
-        std::stringstream ss;
-        ss<<"{\"id\":"<<1
-         <<",\"m\":\"Update\""
-        <<",\"c\":\"Mesh\""
-        <<",\"p\":[" << mesh.asNodeTree().toString() << "]}";
-        c_client.write(ss.str());
+
+    std::string m,c;
+    int offset = 2;
+    SerializeHelper::deserialize(&m, str, offset);
+    SerializeHelper::deserialize(&c, str, offset);
+
+
+
+    if(m == "Get" && c == "Mesh" ){
+        std::string resultMessage;
+        const std::string updateStr = "Update";
+        const std::string meshStr = "Mesh";
+        uint32_t id = 1;
+        offset=0;
+        SmarthomeHeader header = {.version = 1, .type = packageType::Normal};
+        SerializeHelper::serialize(&id, resultMessage, offset);
+        SerializeHelper::serialize(&header, resultMessage, offset);
+        SerializeHelper::serialize(&updateStr, resultMessage, offset);
+        SerializeHelper::serialize(&meshStr, resultMessage, offset);
+        auto meshTree = mesh.asNodeTree().toString();
+        uint8_t paramLength = 1;
+        SerializeHelper::serialize(&paramLength, resultMessage, offset);
+
+        SerializeHelper::serialize(&meshTree, resultMessage, offset);
+
+        c_client.write(resultMessage);
     }
 }
 
 int main(int ac, char* av[]) {
     using namespace painlessmesh;
     try {
+
+
+
+
         size_t port = 5555;
-        std::string ip = "";
+        std::string interfaceName = "";
         std::vector<std::string> logLevel;
         size_t nodeId = 1;
         std::string otaDir;
@@ -109,9 +136,9 @@ int main(int ac, char* av[]) {
                     "--client "
                     "is specified. Specify both if you want to both listen for incoming "
                     "connections and try to connect to a specific node.")(
-                    "client,c", po::value<std::string>(&ip),
-                    "Connect to another node as a client. You need to provide the ip "
-                    "address of the node.")(
+                    "client,c", po::value<std::string>(&interfaceName),
+                    "Connect to another node as a client. You need to provide the interface "
+                    "name of the connection.")(
                     "log,l", po::value<std::vector<std::string>>(&logLevel),
                     "Only log given events to the console. By default all events are "
                     "logged, this allows you to filter which ones to log. Events currently "
@@ -120,9 +147,9 @@ int main(int ac, char* av[]) {
                     "events.")("ota-dir,d", po::value<std::string>(&otaDir),
                                "Watch given folder for new firmware files.")(
                     "serverip,S", po::value<std::string>(&serverIp),
-                    "AppBroker Server IP (default is 8801)")(
+                    "AppBroker Server IP (default is 192.168.49.28)")(
                     "serverport,P", po::value<std::string>(&serverPort),
-                    "AppBroker Server Port (default is 192.168.49.28)");
+                    "AppBroker Server Port (default is 8801)");
 
         po::variables_map vm;
         po::store(po::parse_command_line(ac, av, desc), vm);
@@ -132,6 +159,33 @@ int main(int ac, char* av[]) {
             std::cout << desc << std::endl;
             return 0;
         }
+
+        int fd;
+        struct ifreq ifr;
+
+        fd = socket(AF_INET, SOCK_DGRAM, 0);
+
+        /* I want to get an IPv4 IP address */
+        ifr.ifr_addr.sa_family = AF_INET;
+
+        /* I want IP address attached to specified interface */
+        strncpy(ifr.ifr_name, interfaceName.c_str(), IFNAMSIZ-1);
+
+        ioctl(fd, SIOCGIFADDR, &ifr);
+
+        close(fd);
+
+         /* display result */
+        std::string ip = inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr);
+
+        std::cout << ip << std::endl;
+
+        std::string newIp;
+
+        while(ip.back() != '.'){
+            ip.pop_back();
+        }
+        ip.push_back('1');
 
         Scheduler scheduler;
 
@@ -152,15 +206,17 @@ int main(int ac, char* av[]) {
         std::shared_ptr<AsyncServer> pServer;
 
         c_client.setHandleMessageReceiveHandler([&mesh, &c_client](const mesh_message& mm) {
-            auto type =  (*(uint8_t*)mm.body().substr(4).data());
+            uint8_t type;
+            int offset = 0;
+            auto data = mm.body().substr(4); //skip first 4 bytes to skip nodeid
+            SerializeHelper::deserialize(&type, data, offset);
+
             if(type == 255)
             {
                 handleNonMeshMessage(mesh, mm.body().substr(5), c_client);
                 return;
             }
-
             auto nodeId = (*(uint32_t*)mm.body().data());
-
             if(type == 8)
                 mesh.sendBroadcast(mm.body().substr(5));
             else if(type == 9)
@@ -187,7 +243,13 @@ int main(int ac, char* av[]) {
                       << "\""
                       << ",\"nodeId\":" << nodeId << ",\"msg\":\"" << msg
                       << "\"}" << std::endl;*/
-                // if (_nodeId == nodeId)
+                // if (_nodeId == nodeId
+
+                boost::algorithm::hex(msg, std::ostream_iterator<char> {std::cout, ""});
+                std::cout << std::endl;
+                msg.insert(0, 4, '\0');
+                int offset = 0;
+                SerializeHelper::serialize(&nodeId, msg, offset);
                 c_client.write(msg);
                 // mesh.sendSingle()
                 // TODO
@@ -201,12 +263,12 @@ int main(int ac, char* av[]) {
                   << ",\"nodeId\":" << nodeId
                   << ", \"layout\":" << mesh.asNodeTree().toString() << "}"
                   << std::endl;*/
-                std::stringstream ss;
+                /*std::stringstream ss;
                 ss<<"{\"id\":"<<nodeId
                  <<",\"m\":\"Update\""
                 <<",\"c\":\"OnNewConnection\""
                 <<",\"p\":[" << mesh.asNodeTree().toString() << "]}";
-                c_client.write(ss.str());
+                c_client.write(ss.str());*/ //TODO: Rework?
             });
         }
 
@@ -237,12 +299,13 @@ int main(int ac, char* av[]) {
                       << ", \"layout\":" << mesh.asNodeTree().toString() << "}"
                       << std::endl;*/
 
-            });std::stringstream ss;
+            });
+            /*std::stringstream ss;
             ss<<"{\"id\":"<<nodeId
              <<",\"m\":\"Update\""
             <<",\"c\":\"OnChangedConnections\""
             <<",\"p\":[" << mesh.asNodeTree().toString() << "]}";
-            c_client.write(ss.str());
+            c_client.write(ss.str());*/ //TODO: Rework?
         }
 
         if (logLevel.size() == 0 || contains(logLevel, "offset")) {

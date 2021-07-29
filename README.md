@@ -1,11 +1,11 @@
 # PainlessMeshBoost
 
-This is a boost based version of [painlessMesh](gitlab.com/painlessMesh/painlessMesh). For more details on how to set up painlessMesh to log to this listener see the usage instructions below and the [wiki](https://gitlab.com/BlackEdder/painlessMesh/wikis/bridge-between-mesh-and-another-network). `painlessMeshBoost` is a replacement of the old `painlessMeshListener`, which was harder to maintain and difficult to compile on low memory/arm devices such as the raspberrypi. `painlessMeshBoost` shares most of its code with `painlessMesh`, which ensures compatibility between the two.
+This is a boost based version of [painlessMesh](https://github.com/susch19/painlessMesh). For more details on how to set up painlessMesh to log to this listener see the usage instructions below and the [wiki](https://gitlab.com/BlackEdder/painlessMesh/wikis/bridge-between-mesh-and-another-network). `painlessMeshBoost` is a replacement of the old `painlessMeshListener`, which was harder to maintain and difficult to compile on low memory/arm devices such as the raspberrypi. `painlessMeshBoost` shares most of its code with `painlessMesh`, which ensures compatibility between the two.
 
 ## Install 
 
 ```
-git clone --recurse-submodules https://gitlab.com/painlessMesh/painlessmeshboost.git
+git clone --recurse-submodules https://github.com/susch19/painlessMesh.git
 cd painlessmeshboost
 cmake .
 make
@@ -34,13 +34,13 @@ In this mode it will listen on a port (5555 by default, use `-p <port>` to chang
 
 ### Client
 
-Running it as a client requires you to setup a WiFi connection to the mesh network. Then you can run `painlessMeshBoost` to connect to the node you are connected to. You need the IP address of this node (this is typically the IP of the gateway of the WiFi connection to the mesh).
+Running it as a client requires you to setup a WiFi connection to the mesh network. Then you can run `painlessMeshBoost` to connect to the node you are connected to. You need the Interface name that is connected to the mesh network. The wifi connnection has to be initialized outside of this program by the user.
 
 ```
-painlessMeshBoost --client <ip>
+painlessMeshBoost --client <interface name>
 ```
 
-### OTA
+### OTA (Currently Disabled and non supported)
 
 painlessMeshBoost can be used to distribute firmware to nodes in the mesh. Firmware can be distributed to specific hardware (ESP32 or ESP8266). Different nodes often perform different roles that need specific firmware as well. The role a node fulfills is defined on the node itself. To setup painlessMeshBoost to distribute the firmware use the --ota-dir option:
 
